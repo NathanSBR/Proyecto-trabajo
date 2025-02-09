@@ -3,71 +3,180 @@
 <head>
   <meta charset="UTF-8">
   <title>Gestor de Procesos - Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- Bootstrap CSS (v5) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Chart.js para la gráfica -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { padding-top: 20px; }
-    .flash-message { margin-top: 10px; }
+    body { 
+      padding-top: 70px; 
+      background-color: #e9ecef;
+    }
+    .flash-message { 
+      margin-top: 10px; 
+    }
+    /* Limitar la altura del listado para que sea scrollable */
+    #lista-personas { 
+      max-height: 400px; 
+      overflow-y: auto; 
+    }
+    /* Dimensiones fijas para el canvas de la gráfica principal */
+    #chart {
+      display: block;
+      margin: 0 auto;
+      width: 600px;
+      height: 400px;
+    }
+    /* Estilos para el modal de gráfica para que cubra toda la pantalla en desktop */
+    #chartModal .modal-dialog {
+      width: 100vw !important;
+      height: 100vh !important;
+      margin: 0;
+      padding: 0;
+    }
+    #chartModal .modal-content {
+      width: 100%;
+      height: 100vh !important;
+      border: 5px solid #333; /* Borde para que se vea completo */
+      border-radius: 0;
+    }
+    #chartModalCanvas {
+      width: 100% !important;
+      height: calc(100vh - 70px) !important; /* Restamos el alto de la cabecera */
+    }
+    /* Mejorar el botón "Salir de Pantalla Completa" */
+    #exitFullscreenBtn {
+      background-color: #dc3545 !important;
+      color: #fff !important;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    #exitFullscreenBtn:hover {
+      background-color: #c82333 !important;
+    }
   </style>
 </head>
 <body>
-  <div class="container">
+  <!-- Navbar para mejorar el diseño -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <div class="container">
+      <a class="navbar-brand" href="#">Gestor de Procesos</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" 
+              aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('importar') }}">Importar</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('exportar') }}">Exportar</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mt-4">
     <h1 class="text-center mb-4">Gestor de Procesos</h1>
 
     <!-- Mensajes flash -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         {% for categoria, mensaje in messages %}
-          <div class="alert alert-{{ 'danger' if categoria == 'error' else 'info' }} flash-message" role="alert">
+          <div class="alert alert-{{ 'danger' if categoria == 'error' else 'info' }} alert-dismissible fade show flash-message" role="alert">
             {{ mensaje }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
           </div>
         {% endfor %}
       {% endif %}
     {% endwith %}
 
-    <!-- Formulario para agregar/actualizar procesos -->
     <div class="row">
-      <div class="col-md-6">
-        <form method="POST" action="{{ url_for('index') }}" class="mb-4">
-          <div class="mb-3">
-            <label for="nombre" class="form-label">Nombre:</label>
-            <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Ingrese el nombre" required>
+      <!-- Columna Izquierda: Formulario y Listado -->
+      <div class="col-md-6 mb-4">
+        <!-- Tarjeta del Formulario -->
+        <div class="card mb-4">
+          <div class="card-header">Agregar / Actualizar Usuario</div>
+          <div class="card-body">
+            <form method="POST" action="{{ url_for('index') }}">
+              <div class="mb-3">
+                <label for="nombre" class="form-label">Nombre:</label>
+                <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Ingrese el nombre" required>
+              </div>
+              <div class="mb-3">
+                <label for="procesos" class="form-label">Procesos:</label>
+                <input type="number" class="form-control" id="procesos" name="procesos" placeholder="0" min="0" required>
+              </div>
+              <button type="submit" class="btn btn-primary">Enviar</button>
+            </form>
           </div>
-          <div class="mb-3">
-            <label for="procesos" class="form-label">Procesos:</label>
-            <input type="number" class="form-control" id="procesos" name="procesos" placeholder="0" min="0" required>
-          </div>
-          <button type="submit" class="btn btn-primary">Enviar</button>
-        </form>
+        </div>
 
+        <!-- Enlaces para Importar/Exportar -->
         <div class="mb-4">
           <a href="{{ url_for('importar') }}" class="btn btn-secondary me-2">Importar desde Excel</a>
           <a href="{{ url_for('exportar') }}" class="btn btn-secondary">Exportar a Excel</a>
         </div>
 
-        <!-- Listado de Personas con botones "Más" y "Menos" -->
-        <h2>Listado de Personas</h2>
-        <ul class="list-group">
-          {% for p in persons %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              {{ p.nombre }} - Procesos: <span id="procesos-{{ p.id }}">{{ p.procesos }}</span>
-              <div>
-                <!-- Usamos el id dinámico para cada registro -->
-                <button class="btn btn-sm btn-success me-2" onclick="actualizarProcesos('{{ p.id }}', 'mas')">Más</button>
-                <button class="btn btn-sm btn-danger me-2" onclick="actualizarProcesos('{{ p.id }}', 'menos')">Menos</button>
-                <a href="{{ url_for('editar', id=p.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
-              </div>
-            </li>
-          {% endfor %}
-        </ul>
+        <!-- Tarjeta del Listado de Usuarios -->
+        <div class="card">
+          <div class="card-header">Listado de Usuarios</div>
+          <div class="card-body p-0">
+            <ul class="list-group" id="lista-personas">
+              {% for p in persons %}
+                <li class="list-group-item d-flex justify-content-between align-items-center" id="trabajador-{{ p.id }}">
+                  <div>
+                    <strong>{{ p.nombre }}</strong><br>
+                    Procesos: <span id="procesos-{{ p.id }}">{{ p.procesos }}</span>
+                  </div>
+                  <div>
+                    <button class="btn btn-sm btn-success me-1" onclick="actualizarProcesos('{{ p.id }}', 'mas')">Más</button>
+                    <button class="btn btn-sm btn-danger me-1" onclick="actualizarProcesos('{{ p.id }}', 'menos')">Menos</button>
+                    <a href="{{ url_for('editar', id=p.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
       </div>
 
-      <!-- Gráfica -->
+      <!-- Columna Derecha: Gráfica y Fecha/Hora -->
       <div class="col-md-6">
-        <h2 class="mt-4 mt-md-0">Dashboard</h2>
-        <canvas id="chart" width="600" height="400"></canvas>
+        <!-- Tarjeta de la Gráfica -->
+        <div class="card mb-4" id="chart-card">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            Dashboard
+            <!-- Botón para abrir el modal en modo fullscreen -->
+            <button id="toggleChartModal" class="btn btn-sm btn-secondary">Agrandar Gráfica</button>
+          </div>
+          <div class="card-body">
+            <canvas id="chart"></canvas>
+          </div>
+        </div>
+        <!-- Sección para mostrar fecha y hora actual -->
+        <div class="text-center mb-4">
+          <small id="fechaHora"></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal para visualizar la gráfica en pantalla completa -->
+  <div class="modal fade" id="chartModal" tabindex="-1" aria-labelledby="chartModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-fullscreen modal-dialog-centered" id="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="chartModalLabel">Vista Ampliada de la Gráfica</h5>
+          <!-- Botón para salir del modo fullscreen -->
+          <button id="exitFullscreenBtn" type="button" class="btn btn-sm" style="background-color: #dc3545; color: #fff; font-weight: bold;" data-bs-dismiss="modal">Salir de Pantalla Completa</button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body p-0">
+          <canvas id="chartModalCanvas"></canvas>
+        </div>
       </div>
     </div>
   </div>
@@ -76,7 +185,8 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
   <script>
-    // Función para actualizar procesos vía AJAX
+    let modalInterval;
+
     async function actualizarProcesos(id, accion) {
       try {
         const response = await fetch(`/actualizar/${id}?accion=${accion}`, { method: 'POST' });
@@ -87,13 +197,13 @@
         const data = await response.json();
         document.getElementById(`procesos-${id}`).textContent = data.procesos;
         actualizarGrafica();
+        actualizarGraficaModal();
       } catch (error) {
         console.error(error);
         alert(error.message);
       }
     }
 
-    // Función para actualizar la gráfica con Chart.js
     let chartInstance = null;
     async function actualizarGrafica() {
       try {
@@ -102,26 +212,27 @@
           throw new Error(`Error al obtener datos para la gráfica: ${response.status}`);
         }
         const data = await response.json();
-        const ctx = document.getElementById('chart').getContext('2d');
-
+        const canvas = document.getElementById('chart');
+        canvas.width = 600;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        const nombres = data.nombres;
+        const procesos = data.procesos;
         if (chartInstance) {
           chartInstance.destroy();
         }
-
         chartInstance = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels: data.nombres,
+            labels: nombres,
             datasets: [{
               label: 'Procesos',
-              data: data.procesos,
+              data: procesos,
               backgroundColor: 'rgba(76,175,80,0.7)'
             }]
           },
           options: {
-            scales: {
-              y: { beginAtZero: true }
-            }
+            scales: { y: { beginAtZero: true } }
           }
         });
       } catch (error) {
@@ -132,10 +243,75 @@
     actualizarGrafica();
     setInterval(actualizarGrafica, 10000);
 
-    // Recargar la página cada 35 segundos para mostrar la puntuación en vivo
-    setTimeout(function() {
-      window.location.reload();
-    }, 35000);
+    document.getElementById('toggleChartModal').addEventListener('click', function() {
+      var modalEl = document.getElementById('chartModal');
+      var modalInstance = new bootstrap.Modal(modalEl, { keyboard: false });
+      modalInstance.show();
+      // Al abrir el modal, no usamos requestFullscreen, ya que el modal se ocupa toda la pantalla con CSS
+      actualizarGraficaModal();
+    });
+
+    let chartModalInstance = null;
+    async function actualizarGraficaModal() {
+      try {
+        const response = await fetch('{{ url_for("data") }}');
+        if (!response.ok) {
+          throw new Error(`Error al obtener datos para la gráfica modal: ${response.status}`);
+        }
+        const data = await response.json();
+        const canvas = document.getElementById('chartModalCanvas');
+        // Forzamos que el canvas del modal ocupe toda la pantalla del PC
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const ctx = canvas.getContext('2d');
+        const nombres = data.nombres;
+        const procesos = data.procesos;
+        if (chartModalInstance) {
+          chartModalInstance.destroy();
+        }
+        chartModalInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: nombres,
+            datasets: [{
+              label: 'Procesos',
+              data: procesos,
+              backgroundColor: 'rgba(76,175,80,0.7)'
+            }]
+          },
+          options: {
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      } catch (error) {
+        console.error("Error al actualizar la gráfica modal:", error);
+      }
+    }
+
+    var chartModalEl = document.getElementById('chartModal');
+    chartModalEl.addEventListener('shown.bs.modal', function () {
+      modalInterval = setInterval(actualizarGraficaModal, 10000);
+    });
+    chartModalEl.addEventListener('hidden.bs.modal', function () {
+      clearInterval(modalInterval);
+    });
+
+    function actualizarFechaHora() {
+      const options = {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      };
+      const ahora = new Date().toLocaleString('es-CO', options);
+      document.getElementById('fechaHora').textContent = ahora;
+    }
+    setInterval(actualizarFechaHora, 1000);
+    actualizarFechaHora();
   </script>
 </body>
 </html>
