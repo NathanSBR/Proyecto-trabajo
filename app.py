@@ -157,6 +157,13 @@ def exportar():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
+@app.route('/eliminar/<int:id>', methods=['POST'])
+def eliminar(id):
+    trabajador = Trabajador.query.get_or_404(id)
+    db.session.delete(trabajador)
+    db.session.commit()
+    return jsonify({'success': True})
+
 # Ruta para obtener datos en formato JSON (para la gráfica)
 @app.route('/data')
 def data():
