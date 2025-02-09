@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Gestor de Procesos - Dashboard</title>
+  <!-- Bootstrap CSS (v5) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js para la gráfica -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { padding-top: 20px; }
+    .flash-message { margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-center mb-4">Gestor de Procesos</h1>
+
+    <!-- Mensajes flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for categoria, mensaje in messages %}
+          <div class="alert alert-{{ 'danger' if categoria == 'error' else 'info' }} flash-message" role="alert">
+            {{ mensaje }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Formulario para agregar/actualizar procesos -->
+    <div class="row">
+      <div class="col-md-6">
+        <form method="POST" action="{{ url_for('index') }}" class="mb-4">
+          <div class="mb-3">
+            <label for="nombre" class="form-label">Nombre:</label>
+            <input type="text" class="form-control" id="nombre" name="nombre" placeholder="Ingrese el nombre" required>
+          </div>
+          <div class="mb-3">
+            <label for="procesos" class="form-label">Procesos:</label>
+            <input type="number" class="form-control" id="procesos" name="procesos" placeholder="0" min="0" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Enviar</button>
+        </form>
+
+        <div class="mb-4">
+          <a href="{{ url_for('importar') }}" class="btn btn-secondary me-2">Importar desde Excel</a>
+          <a href="{{ url_for('exportar') }}" class="btn btn-secondary">Exportar a Excel</a>
+        </div>
+
+        <!-- Listado de Personas con botones "Más" y "Menos" -->
+        <h2>Listado de Personas</h2>
+        <ul class="list-group">
+          {% for p in persons %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              {{ p.nombre }} - Procesos: <span id="procesos-{{ p.id }}">{{ p.procesos }}</span>
+              <div>
+                <!-- Usamos el id dinámico para cada registro -->
+                <button class="btn btn-sm btn-success me-2" onclick="actualizarProcesos('{{ p.id }}', 'mas')">Más</button>
+                <button class="btn btn-sm btn-danger me-2" onclick="actualizarProcesos('{{ p.id }}', 'menos')">Menos</button>
+                <a href="{{ url_for('editar', id=p.id) }}" class="btn btn-sm btn-outline-primary">Editar</a>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Gráfica -->
+      <div class="col-md-6">
+        <h2 class="mt-4 mt-md-0">Dashboard</h2>
+        <canvas id="chart" width="600" height="400"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap Bundle con Popper -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Función para actualizar procesos vía AJAX
+    async function actualizarProcesos(id, accion) {
+      try {
+        const response = await fetch(`/actualizar/${id}?accion=${accion}`, { method: 'POST' });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Error en la actualización: ${response.status} - ${errorText}`);
+        }
+        const data = await response.json();
+        document.getElementById(`procesos-${id}`).textContent = data.procesos;
+        actualizarGrafica();
+      } catch (error) {
+        console.error(error);
+        alert(error.message);
+      }
+    }
+
+    // Función para actualizar la gráfica con Chart.js
+    let chartInstance = null;
+    async function actualizarGrafica() {
+      try {
+        const response = await fetch('{{ url_for("data") }}');
+        if (!response.ok) {
+          throw new Error(`Error al obtener datos para la gráfica: ${response.status}`);
+        }
+        const data = await response.json();
+        const ctx = document.getElementById('chart').getContext('2d');
+
+        if (chartInstance) {
+          chartInstance.destroy();
+        }
+
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: data.nombres,
+            datasets: [{
+              label: 'Procesos',
+              data: data.procesos,
+              backgroundColor: 'rgba(214,39,40,0.7)'
+            }]
+          },
+          options: {
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+      } catch (error) {
+        console.error("Error al actualizar la gráfica:", error);
+      }
+    }
+
+    actualizarGrafica();
+    setInterval(actualizarGrafica, 10000);
+
+    // Recargar la página cada 35 segundos para mostrar la puntuación en vivo
+    setTimeout(function() {
+      window.location.reload();
+    }, 35000);
+  </script>
+</body>
+</html>
